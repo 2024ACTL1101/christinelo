@@ -81,7 +81,10 @@ $$
 $$
 
 ```r
-#fill the code
+# Calculate daily returns for AMD and S&P 500
+df <- df %>%
+  mutate(AMD_Daily_Return = (AMD - lag(AMD)) / lag(AMD),
+         GSPC_Daily_Return = (GSPC - lag(GSPC)) / lag(GSPC))
 ```
 
 - **Calculate Risk-Free Rate**: Calculate the daily risk-free rate by conversion of annual risk-free Rate. This conversion accounts for the compounding effect over the days of the year and is calculated using the formula:
@@ -91,21 +94,31 @@ $$
 $$
 
 ```r
-#fill the code
+#Add a new column daily_risk-free rate
+#Calculate the daily risk-free rate 
+#Annual rate can be derived from the RF in df
+df <- df%>%
+  mutate(daily_risk_free_rate = (1+RF/100)^(1/360)-1)
 ```
 
 
 - **Calculate Excess Returns**: Compute the excess returns for AMD and the S&P 500 by subtracting the daily risk-free rate from their respective returns.
 
 ```r
-#fill the code
+#Add two new columns AMD_excess_returns and GSPC_excess_returns
+#Calculate the excess rate by finding the difference between daily return and daily risk-free rate
+df <- df %>%
+  mutate(AMD_excess_returns = (AMD_Daily_Return - daily_risk_free_rate),
+         GSPC_excess_returns= (GSPC_Daily_Return - daily_risk_free_rate))
 ```
 
 
 - **Perform Regression Analysis**: Using linear regression, we estimate the beta (\(\beta\)) of AMD relative to the S&P 500. Here, the dependent variable is the excess return of AMD, and the independent variable is the excess return of the S&P 500. Beta measures the sensitivity of the stock's returns to fluctuations in the market.
 
 ```r
-#fill the code
+#Let lrModel be the linear regression model
+lrModel <- lm(AMD_excess_returns~GSPC_excess_returns,data=df)
+summary(lrModel)
 ```
 
 
@@ -114,13 +127,20 @@ $$
 What is your \(\beta\)? Is AMD more volatile or less volatile than the market?
 
 **Answer:**
-
+beta <-summary(lrModel)$coefficients[2,1]
+beta
+#The value of beta is 1.5699987. The volatility of AMD can be determined by beta since beta represents the systematic risk of the security, meaning it measures the sensitivity to the stock's returns to flunctuations in the market. AMD is more volatile than the market if beta is greater than 1 as it suggests that the stock's returns change more in response to market movements. Therefore, AMD is more volatile than the market.
 
 #### Plotting the CAPM Line
 Plot the scatter plot of AMD vs. S&P 500 excess returns and add the CAPM regression line.
 
 ```r
-#fill the code
+plot<-ggplot(df, aes(x=GSPC_excess_returns, y=AMD_excess_returns))+
+  geom_point()+ #Adds the scatterplot
+  geom_smooth(method="lm", col="red", )+ #Adds regression line
+  labs(title="AMD vs S&P excess returns", x="S&P", y="AMD")
+
+plot
 ```
 
 ### Step 3: Predictions Interval
@@ -131,5 +151,36 @@ Suppose the current risk-free rate is 5.0%, and the annual expected return for t
 **Answer:**
 
 ```r
-#fill the code
+#Calculate the annual expected return for AMD
+#Define risk free rate
+Rf <- 0.05
+#Define the annual expected return for S&P 500
+#Define beta
+beta <-summary(lrModel)$coefficients[2,1]
+ERm <- 0.133
+#Find the annual expected return for AMD
+ERi <- Rf+beta*(ERm-Rf)
+#Number of observations
+n<-length(df$GSPC_excess_returns)
+#Convert current risk free rate to daily risk free rate
+drfr = (1+Rf)^(1/360)-1
+#Mean of daily return for S&P 500
+avg_gspc_return <- mean(df$GSPC_excess_returns, na.rm = T)
+#Standard error of the estimate
+se<-sqrt(sum(residuals(lrModel)^2)/(n-1-1))
+#Sum of squares of the daily return of S&P 500
+SSX<-sum((df$GSPC_excess_returns-avg_gspc_return)^2, na.rm = T)
+#Calculate the standard error of the forecast
+sf<- se*sqrt(1+1/n+(((ERm/252)-drfr)-avg_gspc_return)^2/SSX)
+#Calculate the annual standard error for prediction
+ansf<- sqrt(252)*sf
+#90% prediction interval
+alpha<- 0.10
+#tvalue for 90% confidence interval level with n-1-1 degrees of freedom
+tvalue<-qt(1-alpha/2, df=n-2)
+#Prediction interval
+lowerbound <-ERi-tvalue*ansf
+upperbound <- ERi+tvalue*ansf
+#Print the results
+cat("The 90% prediction interval is[", round(lowerbound, 2), ",", round(upperbound, 2),"]. The wide interval further reiterates the high volatility of AMD's annual expected return.\n")          
 ```
